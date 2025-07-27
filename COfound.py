@@ -103,7 +103,7 @@ async def process_business(details: BusinessDetails):
     try:
         # Generate logo
         logo_filename = generate_logo(details)  # This should return the filename
-        logo_path = f"http://10.0.2.2:5000/generated_logos/{logo_filename}"
+        logo_path = f"http://10.0.2.2:5000/generated_logos/{logo_filename}"  # Ensure forward slashes
         logging.info(logo_path)
         
         # Generate marketing strategy as text
@@ -127,11 +127,16 @@ async def process_business(details: BusinessDetails):
             "concept": details.concept,
         }
         
-               # Save the session data
+        # Save the session data
         MemoryManager.save_session(result)
         
         logging.info(f"Processed result: {result}")
         return {"data": result}
+    
+    except Exception as e:
+        logging.error(f"Error processing business details: {str(e)}")
+        return {"error": "An error occurred while processing the request."}
+
     
     except Exception as e:
         logging.error(f"Error processing business details: {str(e)}")
@@ -141,12 +146,14 @@ async def process_business(details: BusinessDetails):
 async def load_last_session():
     try:
         session_data = MemoryManager.load_last_session()
+        logging.info(f"Loaded session data: {session_data}")  # Log the session data
         if session_data:
             return session_data
         return {"error": "No session data found."}
     except Exception as e:
         logging.error(f"Error loading last session: {str(e)}")
         return {"error": "An error occurred while loading the session."}
+
 
         
 
@@ -258,7 +265,7 @@ def generate_logo(details: BusinessDetails) -> str:
     except Exception as e:
         logging.error(f"Logo error: {str(e)}, using fallback")
         return generate_fallback_logo(details.name)
-    
+
 
 def generate_fallback_logo(name: str) -> str:
     """Create simple text logo if API fails"""
