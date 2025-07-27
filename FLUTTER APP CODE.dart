@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
-import 'package:http/http.dart' as http; 
+import 'package:http/http.dart' as http; // Import for HTTP requests
 import 'dart:convert'; void main() {
   runApp(const MyApp());
 }
@@ -326,6 +326,9 @@ class NextPage extends StatelessWidget {
   }
 
 }
+
+
+
 class BusinessInputPage extends StatefulWidget {
   const BusinessInputPage({super.key});
 
@@ -342,11 +345,12 @@ class _BusinessInputPageState extends State<BusinessInputPage> {
   final TextEditingController _budgetController = TextEditingController();
   final TextEditingController _conceptController = TextEditingController();
   
+  String _sessionData = "No session loaded yet.";
 
   void _showLoadingDialog(BuildContext context) {
     showDialog(
       context: context,
-      barrierDismissible: false, // Prevents dismissing the dialog by tapping outside
+      barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
           content: Row(
@@ -382,59 +386,71 @@ class _BusinessInputPageState extends State<BusinessInputPage> {
   }
 
   void _submitForm() async {
-    if (_formKey.currentState!.validate()) {
-      _showLoadingDialog(context); // Show loading dialog
+  if (_formKey.currentState!.validate()) {
+    // Check if the name field is not empty
+    if (_nameController.text.isNotEmpty) {
+      // If a name is provided, proceed to launch the business
+      _launchBusiness();
+    } else {
+      // If the name field is empty, show loading dialog and fetch name suggestions
+        _showLoadingDialog(context); // Show loading dialog
 
-      // Fetch name suggestions from the API
-      final suggestions = await _fetchNameSuggestions();
+        // Fetch name suggestions from the API
+        final suggestions = await _fetchNameSuggestions();
 
-      Navigator.of(context).pop(); // Dismiss loading dialog
+        Navigator.of(context).pop(); // Dismiss loading dialog
 
-      if (suggestions.isNotEmpty) {
+        if (suggestions.isNotEmpty) {
         // Show dialog to select a name
-        String? selectedName = await showDialog<String>(
-          context: context,
-          builder: (BuildContext context) {
-            return AlertDialog(
-              title: const Text("Choose a Business Name"),
-              content: SingleChildScrollView(
-                child: ListBody(
-                  children: suggestions.map((name) {
-                    return ListTile(
-                      title: Text(name),
-                      onTap: () {
-                        Navigator.of(context).pop(name); // Return the selected name
-                      },
-                    );
-                  }).toList(),
+          String? selectedName = await showDialog<String>(
+            context: context,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                title: const Text("Choose a Business Name"),
+                content: SingleChildScrollView(
+                  child: ListBody(
+                    children: suggestions.map((name) {
+                      return ListTile(
+                        title: Text(name),
+                        onTap: () {
+                          Navigator.of(context).pop(name); // Return the selected name
+                        },
+                      );
+                    }).toList(),
+                  ),
                 ),
-              ),
-              actions: <Widget>[
-                TextButton(
-                  child: const Text("Cancel"),
-                  onPressed: () {
-                    Navigator.of(context).pop(); // Close the dialog without selecting
-                  },
-                ),
-              ],
-            );
-          },
-        );
+                actions: <Widget>[
+                  TextButton(
+                    child: const Text("Cancel"),
+                    onPressed: () {
+                      Navigator.of(context).pop(); // Close the dialog without selecting
+                    },
+                  ),
+                ],
+              );
+            },
+          );
 
-        if (selectedName != null) {
-          // Proceed with the selected name
-          _nameController.text = selectedName; // Set the selected name in the text field
-          _launchBusiness(); // Call the method to launch the business
+          if (selectedName != null) {
+            // Proceed with the selected name
+            _nameController.text = selectedName; // Set the selected name in the text field
+            // Now launch the business with the selected name
+            _launchBusiness();
+          } else {
+            // Handle case where no name is selected
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('No name selected.')),
+            );
+          }
+        } else {
+          // Handle case where no suggestions are available
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('No name suggestions available.')),
+          );
         }
-      } else {
-        // Handle case where no suggestions are available
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No name suggestions available.')),
-        );
       }
     }
   }
-
   Future<List<String>> _fetchNameSuggestions() async {
     final Map<String, dynamic> data = {
       'area': _areaController.text,
@@ -465,7 +481,7 @@ class _BusinessInputPageState extends State<BusinessInputPage> {
 
   void _launchBusiness() async {
     // Prepare the data to send to the API
-    String name = _nameController.text.isNotEmpty ? _nameController.text : "";
+    String name = _nameController.text ;
     String area = _areaController.text;
     String location = _locationController.text;
     String region = _regionController.text;
@@ -529,29 +545,48 @@ class _BusinessInputPageState extends State<BusinessInputPage> {
     }
   }
 
-  void _loadLastSession() async {
+  Future<void> loadLastSession() async {
+  print("Loading last session..."); // Debugging line
   try {
     final response = await http.get(Uri.parse('http://10.0.2.2:5000/load_last_session'));
+
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
-      // Populate the text fields with the loaded data
-      _nameController.text = data['business_name'];
-      _areaController.text = data['area'];
-      _locationController.text = data['location'];
-      _regionController.text = data['region'];
-      _budgetController.text = data['budget'].toString();
-      _conceptController.text = data['concept'];
-      // Optionally, navigate to the results page or show a success message
+      print("Response data: $data"); // Debugging line
+      if (data != null) {
+        // Navigate to the LastSessionPage with the loaded session data
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => LastSessionPage(
+              name: data['business_name'],
+              logoPath: data['logo_path'],
+              marketingPlan: data['marketing_plan'],
+              businessPlan: data['business_plan'],
+              area: data['area'],
+              location: data['location'],
+              region: data['region'],
+              budget: data['budget'],
+              concept: data['concept'],
+            ),
+          ),
+        );
+      } else {
+        setState(() {
+          _sessionData = 'No session data found.';
+        });
+      }
     } else {
-      throw Exception('Failed to load last session');
+      setState(() {
+        _sessionData = 'Failed to load last session: ${response.statusCode}';
+      });
     }
   } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Error: ${e.toString()}')),
-    );
+    setState(() {
+      _sessionData = 'Error: $e';
+    });
   }
 }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -627,8 +662,6 @@ class _BusinessInputPageState extends State<BusinessInputPage> {
               ),
               const SizedBox(height: 20),
 
-              
-
               ElevatedButton(
                 onPressed: _submitForm,
                 style: ElevatedButton.styleFrom(
@@ -645,16 +678,16 @@ class _BusinessInputPageState extends State<BusinessInputPage> {
                   shadowColor: Colors.black.withOpacity(0.3),
                   padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
                 ),
-                  child: const Text("Launch your Dream Business"),
+                child: const Text("Launch your Dream Business"),
+              ),
+              const SizedBox(height: 10), // Add some space between the buttons
+              TextButton(
+                onPressed: loadLastSession,
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF230aef), // Text color
                 ),
-                  const SizedBox(height: 10), // Add some space between the buttons
-                  TextButton(
-                    onPressed: _loadLastSession,
-                    style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFF230aef), // Text color
-      ),
-                  child: const Text("Load Your Last Session"),
-                  ),
+                child: const Text("Load Your Last Session"),
+              ),
             ],
           ),
         ),
@@ -662,6 +695,103 @@ class _BusinessInputPageState extends State<BusinessInputPage> {
     );
   }
 }
+
+class LastSessionPage extends StatelessWidget {
+  final String? name;
+  final String logoPath;
+  final String marketingPlan;
+  final String businessPlan;
+  final String area;
+  final String location;
+  final String region;
+  final double budget;
+  final String concept;
+
+  const LastSessionPage({
+    super.key,
+    this.name,
+    required this.logoPath,
+    required this.marketingPlan,
+    required this.businessPlan,
+    required this.area,
+    required this.location,
+    required this.region,
+    required this.budget,
+    required this.concept,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Last Session Results"),
+        backgroundColor: const Color(0xFF230aef),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: ListView(
+          children: [
+            ListTile(
+              title: const Text("Business Name"),
+              subtitle: Text(name ?? 'No name'),
+            ),
+            ListTile(
+              title: const Text("Logo"),
+              subtitle: logoPath.isNotEmpty
+                  ? Image.network(
+                      logoPath,
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Text('Failed to load image');
+                      },
+                    )
+                  : const Text('No logo available'),
+            ),
+            ExpansionTile(
+              title: const Text("Marketing Plan"),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Text(marketingPlan),
+                ),
+              ],
+            ),
+            ExpansionTile(
+              title: const Text("Business Plan"),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Text(businessPlan),
+                ),
+              ],
+            ),
+            ListTile(
+              title: const Text("Area"),
+              subtitle: Text(area),
+            ),
+            ListTile(
+              title: const Text("Location"),
+              subtitle: Text(location),
+            ),
+            ListTile(
+              title: const Text("Region"),
+              subtitle: Text(region),
+            ),
+            ListTile(
+              title: const Text("Budget"),
+              subtitle: Text('\$${budget.toStringAsFixed(2)}'),
+            ),
+            ListTile(
+              title: const Text("Concept"),
+              subtitle: Text(concept),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
 class NameSuggestionsPage extends StatelessWidget {
   const NameSuggestionsPage({super.key});
 
@@ -799,7 +929,7 @@ class BusinessResultsPage extends StatelessWidget {
                   ),
                 ),
                 elevation: 5,
-                shadowColor: Colors.black.withValues(alpha: 0.3),
+                shadowColor: Colors.black.withOpacity(0.3),
                 padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
               ),
               child: const Text("Proceed"),
